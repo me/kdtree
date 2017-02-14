@@ -1,0 +1,7 @@
+*.gem
+.ruby-version
+.byebug_history
+Gemfile.lock
+lib/*.so
+lib/kdtree.bundle
+tmp
