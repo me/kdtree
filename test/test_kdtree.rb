@@ -32,31 +32,6 @@ class KdtreeTest < Minitest::Test
     end
   end
 
-  # def setup
-  #   @points = [
-  #     KDTreeNode.new(6, 3, 0),
-  #     KDTreeNode.new(2, 5, 1),
-  #     KDTreeNode.new(3, 8, 2),
-  #     KDTreeNode.new(8, 9, 3),
-  #   ]
-  #   @kdtree = KDTree.new(@points)
-  # end
-
-  # def test_nearest
-  #   pt = OpenStruct.new(x: 7, y: 4)
-  #   kdpts = @kdtree.nearest(pt.x, pt.y, 10, -1)
-  #   kdpt = kdpts.first
-  #   sortpt = @points.sort_by { |i| distance(i, pt) }.first
-  #   byebug
-  #   kdd = distance(kdpt, pt)
-  #   sortd = distance(sortpt, pt)
-  #   sortpt
-  # end
-
-  # def teardown
-  #   File.unlink(TMP) if File.exists?(TMP)
-  # end
-
   def test_nearest
     100.times do
       pt = OpenStruct.new(x: rand_coord, y: rand_coord)
@@ -69,14 +44,14 @@ class KdtreeTest < Minitest::Test
       # N results
       kdpts = @kdtree.nearest(pt.x, pt.y, 10)
       sortpts = find_nearest(@points, pt, 10)
-      assert(kdpts.map(&:id) == sortpts.map(&:id), "kdtree nearest n did not return the closest result")
+      assert(kdpts.map(&:id).sort == sortpts.map(&:id).sort, "kdtree nearest n did not return the closest results")
 
 
       # With limit
-      kdpts = @kdtree.nearest(pt.x, pt.y, 10, 2)
-      limited = @points.select{ |p| distance(p, pt) < 2 }
+      kdpts = @kdtree.nearest(pt.x, pt.y, 10, 0.5)
+      limited = @points.select{ |p| distance(p, pt) < 0.5 }
       sortpts = find_nearest(limited, pt, 10)
-      assert(kdpts.map(&:id) == sortpts.map(&:id), "kdtree nearest n with limit did not return the closest result")
+      assert(kdpts.map(&:id).sort == sortpts.map(&:id).sort, "kdtree nearest n with limit did not return the closest results")
     end
   end
 
@@ -102,20 +77,6 @@ class KdtreeTest < Minitest::Test
     end
   end
 
-  # def test_tmp
-  #   @points = [
-  #     KDTreeNode.new(6, 3, 0),
-  #     KDTreeNode.new(2, 5, 1),
-  #     KDTreeNode.new(3, 8, 2),
-  #     KDTreeNode.new(8, 9, 3),
-  #     KDTreeNode.new(1, 10, 4),
-  #   ]
-  #   @kdtree = KDTree.new(@points)
-
-  #   byebug
-  #   tree
-  # end
-
   def test_remove
     removed = []
     500.times do |i|
@@ -138,58 +99,6 @@ class KdtreeTest < Minitest::Test
       assert((kdd - sortd).abs < 0.0000001, "kdtree didn't return the closest result")
     end
   end
-
-  # def test_nearestk
-  #   100.times do
-  #     pt = [rand_coord, rand_coord]
-
-  #     # kdtree search
-  #     list = @kdtree.nearestk(pt[0], pt[1], 5)
-  #     kdpt = @points[list.last]
-
-  #     # slow search
-  #     sortpt = @points.sort_by { |i| distance(i, pt) }[list.length - 1]
-
-  #     # assert
-  #     kdd = distance(kdpt, pt)
-  #     sortd = distance(sortpt, pt)
-  #     assert((kdd - sortd).abs < 0.0000001, "kdtree didn't return the closest result")
-  #   end
-  # end
-
-  # def test_persist
-  #   # write
-  #   File.open(TMP, "w") { |f| @kdtree.persist(f) }
-  #   # read
-  #   kdtree2 = File.open(TMP, "r") { |f| Kdtree.new(f) }
-
-  #   # now test some random points
-  #   100.times do
-  #     pt = [rand_coord, rand_coord]
-  #     id1 = @kdtree.nearest(*pt)
-  #     id2 = kdtree2.nearest(*pt)
-  #     assert(id1 == id2, "kdtree2 differed from kdtree")
-  #   end
-  # end
-
-  # def test_bad_magic
-  #   File.open(TMP, "w") { |f| f.puts "That ain't right" }
-  #   assert_raises RuntimeError do
-  #     File.open(TMP, "r") { |f| Kdtree.new(f) }
-  #   end
-  # end
-
-  # def test_eof
-  #   File.open(TMP, "w") { |f| @kdtree.persist(f) }
-  #   bytes = File.read(TMP)
-
-  #   [2, 10, 100].each do |len|
-  #     File.open(TMP, "w") { |f| f.write(bytes[0, len]) }
-  #     assert_raises EOFError do
-  #       File.open(TMP, "r") { |f| Kdtree.new(f) }
-  #     end
-  #   end
-  # end
 
   def dont_test_speed
     sizes = [1, 100, 1000, 10000, 100000, 1000000]

@@ -42,69 +42,87 @@ static kdtree_node* kdtree_build(struct kdtree_node *nodes, int min, int max, in
 
 // Heap implementation
 
-typedef struct {
+#define HEAP_LCHILD(x) 2 * x + 1
+#define HEAP_RCHILD(x) 2 * x + 2
+#define HEAP_PARENT(x) (x - 1) / 2
+
+typedef struct heapNode {
     float distance;
     kdtree_node *node;
-} heap_node_t;
+} heapNode;
 
-typedef struct {
-    heap_node_t *nodes;
+typedef struct maxHeap {
     int len;
     int size;
-} heap_t;
+    heapNode *elem;
+} maxHeap;
 
-static kdtree_node *pop (heap_t *h) {
-    int i, j, k;
-    if (!h->len) {
-        return NULL;
-    }
-    kdtree_node *node = h->nodes[1].node;
-    h->nodes[1] = h->nodes[h->len];
-    h->len--;
-    i = 1;
-    while (1) {
-        k = i;
-        j = 2 * i;
-        if (j <= h->len && h->nodes[j].distance < h->nodes[k].distance) {
-            k = j;
-        }
-        if (j + 1 <= h->len && h->nodes[j + 1].distance < h->nodes[k].distance) {
-            k = j + 1;
-        }
-        if (k == i) {
-            break;
-        }
-        h->nodes[i] = h->nodes[k];
-        i = k;
-    }
-    h->nodes[i] = h->nodes[h->len + 1];
-    return node;
+
+static maxHeap initmaxHeap() {
+    maxHeap hp ;
+    hp.size = 0 ;
+    return hp ;
 }
 
-static void push(heap_t *h, float distance, kdtree_node *node, int maxNodes) {
-    if (h->len + 1 >= h->size) {
-        h->size = h->size ? h->size * 2 : 4;
-        h->nodes = (heap_node_t *)realloc(h->nodes, h->size * sizeof (heap_node_t));
-    }
-    int i = h->len + 1;
-    int j = i / 2;
-    while (i > 1 && h->nodes[j].distance > distance) {
-        h->nodes[i] = h->nodes[j];
-        i = j;
-        j = j / 2;
-    }
-    h->nodes[i].distance = distance;
-    h->nodes[i].node = node;
-    h->len++;
-    if (h->len > maxNodes) {
-      h->len--;
-    }
+static void deletemaxHeap(maxHeap *hp) {
+    free(hp->elem) ;
 }
 
-static heap_node_t *peek(heap_t *h) {
-  return &h->nodes[1];
+static void swap(heapNode *n1, heapNode *n2) {
+    heapNode temp = *n1 ;
+    *n1 = *n2 ;
+    *n2 = temp ;
 }
 
+static void heapify(maxHeap *hp, int i) {
+  int largest = (HEAP_LCHILD(i) < hp->len && hp->elem[HEAP_LCHILD(i)].distance > hp->elem[i].distance) ? HEAP_LCHILD(i) : i ;
+  if(HEAP_RCHILD(i) < hp->len && hp->elem[HEAP_RCHILD(i)].distance > hp->elem[largest].distance) {
+    largest = HEAP_RCHILD(i) ;
+  }
+  if(largest != i) {
+    swap(&(hp->elem[i]), &(hp->elem[largest])) ;
+    heapify(hp, largest) ;
+  }
+}
+
+static kdtree_node *pop(maxHeap *hp) {
+  if (!hp->len) {
+    return NULL;
+  }
+  kdtree_node *node = hp->elem[0].node;
+  hp->elem[0] = hp->elem[--(hp->len)];
+  heapify(hp, 0);
+  return node;
+}
+
+static void push(maxHeap *hp, float distance, kdtree_node *node, int maxNodes) {
+  if (hp->len + 1 >= hp->size) {
+    hp->size = hp->size ? hp->size * 2 : 4;
+    hp->elem = realloc(hp->elem, hp->size * sizeof(heapNode));
+  }
+
+  heapNode nd;
+  nd.node = node;
+  nd.distance = distance;
+
+  int i = (hp->len)++;
+  while(i && nd.distance > hp->elem[HEAP_PARENT(i)].distance) {
+        hp->elem[i] = hp->elem[HEAP_PARENT(i)] ;
+        i = HEAP_PARENT(i) ;
+    }
+  // while(i && nd.distance < hp->elem[HEAP_PARENT(i)].distance) {
+  //     hp->elem[i] = hp->elem[HEAP_PARENT(i)] ;
+  //     i = HEAP_PARENT(i);
+  // }
+  hp->elem[i] = nd;
+  if (hp->len > maxNodes) {
+    pop(hp);
+  }
+}
+
+static heapNode *peek(maxHeap *hp) {
+  return &hp->elem[0];
+}
 
 // Node
 
@@ -262,33 +280,32 @@ static float kdnode_get_dim(struct kdtree_node *node, int depth)
 
 static kdtree_node* kdtree_build(struct kdtree_node *nodes, int min, int max, int depth)
 {
-    int(*compar)(const void *, const void *);
-    struct kdtree_node *m;
-    int median;
-    if (max <= min) {
-        return NULL;
-    }
+  if (max <= min) {
+    return NULL;
+  }
 
-    // sort nodes from min to max
-    compar = (depth % 2) ? comparex : comparey;
-    qsort(nodes + min, max - min, sizeof(struct kdtree_node), compar);
+  struct kdtree_node *m;
+  int median;
 
-    median = (min + max) / 2;
-    m = nodes + median;
-    m->left = kdtree_build(nodes, min, median, depth + 1);
-    m->right = kdtree_build(nodes, median + 1, max, depth + 1);
-    return m;
+  int(*compare)(const void *, const void *);
+  compare = (depth % 2) ? comparex : comparey;
+
+  qsort(nodes + min, max - min, sizeof(struct kdtree_node), compare);
+
+  median = (min + max) / 2;
+  m = nodes + median;
+  m->left = kdtree_build(nodes, min, median, depth + 1);
+  m->right = kdtree_build(nodes, median + 1, max, depth + 1);
+  return m;
 }
 
-static void nearest_search(heap_t *best, float maxNodes, float x, float y, kdtree_node *node, int depth)
+static void nearest_search(maxHeap *best, float maxNodes, float x, float y, kdtree_node *node, int depth)
 {
-
-  float dist = pow(x - node->x, 2) + pow(y - node->y, 2);
-  if (node->left == NULL && node->right == NULL) { // leaf case
-    push(best, dist, node, maxNodes);
+  if (!node) {
     return;
   }
 
+  float dist = pow(x - node->x, 2) + pow(y - node->y, 2);
   float diff;
 
   if (depth % 2) {
@@ -297,39 +314,17 @@ static void nearest_search(heap_t *best, float maxNodes, float x, float y, kdtre
     diff = y - node->y;
   }
 
-  struct kdtree_node *bestChild;
-
-  if (node->right == NULL) {
-    bestChild = node->left;
-  } else if (node->left == NULL) {
-    bestChild = node->right;
-  } else {
-    if (diff < 0) {
-      bestChild = node->left;
-    } else {
-      bestChild = node->right;
-    }
-  }
-
-  nearest_search(best, maxNodes, x, y, bestChild, depth+1);
-
-  if (best->len < maxNodes || dist < peek(best)->distance) {
+  if (best->len < maxNodes || dist <= peek(best)->distance) {
     push(best, dist, node, maxNodes);
   }
 
-  float linDist = diff*diff;
+  kdtree_node *near = diff <= 0 ? node->left : node->right;
+  kdtree_node *far = diff <= 0 ? node->right : node->left;
 
-  if (best->len < maxNodes || fabsf(linDist) < peek(best)->distance) {
-    struct kdtree_node *otherChild;
+  nearest_search(best, maxNodes, x, y, near, depth+1);
 
-    if (bestChild == node->left) {
-      otherChild = node->right;
-    } else {
-      otherChild = node->left;
-    }
-    if (otherChild != NULL) {
-      nearest_search(best, maxNodes, x, y, otherChild, depth+1);
-    }
+  if (best->len < maxNodes || (diff * diff) < peek(best)->distance) {
+    nearest_search(best, maxNodes, x, y, far, depth+1);
   }
 }
 
@@ -453,7 +448,7 @@ static VALUE kdtree_nearest(int argc, VALUE* argv, VALUE kdtree)
     maxNodes = NUM2INT(argv[2]);
   }
 
-  heap_t *h = (heap_t *)calloc(1, sizeof (heap_t));
+  maxHeap *h = (maxHeap *)calloc(1, sizeof (maxHeap));
 
   if (argc > 3) {
     float maxDistance = NUM2DBL(argv[3]);
@@ -513,4 +508,3 @@ void Init_kdtree()
     rb_define_method(Kdnode_class, "left", kdtree_node_left, 0);
     rb_define_method(Kdnode_class, "right", kdtree_node_right, 0);
 }
-
