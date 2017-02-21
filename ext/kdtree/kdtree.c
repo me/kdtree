@@ -280,7 +280,7 @@ static kdtree_node* kdtree_build(struct kdtree_node *nodes, int min, int max, in
     return m;
 }
 
-static void nearest_search(heap_t *best, float maxNodes, float maxDistance, float x, float y, kdtree_node *node, int depth)
+static void nearest_search(heap_t *best, float maxNodes, float x, float y, kdtree_node *node, int depth)
 {
 
   float dist = pow(x - node->x, 2) + pow(y - node->y, 2);
@@ -311,7 +311,7 @@ static void nearest_search(heap_t *best, float maxNodes, float maxDistance, floa
     }
   }
 
-  nearest_search(best, maxNodes, maxDistance, x, y, bestChild, depth+1);
+  nearest_search(best, maxNodes, x, y, bestChild, depth+1);
 
   if (best->len < maxNodes || dist < peek(best)->distance) {
     push(best, dist, node, maxNodes);
@@ -328,10 +328,9 @@ static void nearest_search(heap_t *best, float maxNodes, float maxDistance, floa
       otherChild = node->left;
     }
     if (otherChild != NULL) {
-      nearest_search(best, maxNodes, maxDistance, x, y, otherChild, depth+1);
+      nearest_search(best, maxNodes, x, y, otherChild, depth+1);
     }
   }
-
 }
 
 static kdtree_node* kdtree_insert(struct kdtree_node *p, struct kdtree_node *n, int depth)
@@ -443,41 +442,53 @@ static VALUE kdtree_delete(VALUE kdtree, VALUE kdnode) {
   return kdtree;
 }
 
-static VALUE kdtree_nearest(VALUE kdtree, VALUE xv, VALUE yv, VALUE maxNodesv, VALUE maxDistancev)
+static VALUE kdtree_nearest(int argc, VALUE* argv, VALUE kdtree)
 {
   KDTREEP;
-  float x = NUM2DBL(xv);
-  float y = NUM2DBL(yv);
-  int maxNodes = NUM2INT(maxNodesv);
-  float maxDistance = NUM2DBL(maxDistancev);
+  float x = NUM2DBL(argv[0]);
+  float y = NUM2DBL(argv[1]);
+  int maxNodes = 1;
+
+  if (argc > 2) {
+    maxNodes = NUM2INT(argv[2]);
+  }
+
   heap_t *h = (heap_t *)calloc(1, sizeof (heap_t));
 
-  if (maxDistance != -1) {
+  if (argc > 3) {
+    float maxDistance = NUM2DBL(argv[3]);
     for (int i=0; i<maxNodes; ++i) {
       push(h, maxDistance, NULL, maxNodes);
     }
   }
 
   if (kdtreep->root) {
-    nearest_search(h, maxNodes, maxDistance, x, y, kdtreep->root, 0);
+    nearest_search(h, maxNodes, x, y, kdtreep->root, 0);
   }
 
-  VALUE result = rb_ary_new();
-  int cnt = h->len;
-  if (maxNodes < cnt) {
-    cnt = maxNodes;
-  }
 
-  struct kdtree_node *node;
-
-  for (int i=0; i<cnt; ++i) {
-    node = pop(h);
-    if (node) {
-      VALUE v = Data_Wrap_Struct(Kdnode_class, NULL, kdtree_node_free, node);
-      rb_ary_push(result, v);
+  if (argc <= 2) {
+    // no maxNodes, return one result
+    return Data_Wrap_Struct(Kdnode_class, NULL, kdtree_node_free, pop(h));
+  } else {
+    // return array
+    VALUE result = rb_ary_new();
+    int cnt = h->len;
+    if (maxNodes < cnt) {
+      cnt = maxNodes;
     }
+
+    struct kdtree_node *node;
+
+    for (int i=0; i<cnt; ++i) {
+      node = pop(h);
+      if (node) {
+        VALUE v = Data_Wrap_Struct(Kdnode_class, NULL, kdtree_node_free, node);
+        rb_ary_push(result, v);
+      }
+    }
+    return result;
   }
-  return result;
 }
 
 void Init_kdtree()
@@ -487,7 +498,7 @@ void Init_kdtree()
 
     rb_define_alloc_func(Kdtree_class, kdtree_alloc);
     rb_define_method(Kdtree_class, "initialize", kdtree_initialize, 1);
-    rb_define_method(Kdtree_class, "nearest", kdtree_nearest, 4);
+    rb_define_method(Kdtree_class, "nearest", kdtree_nearest, -1);
     rb_define_method(Kdtree_class, "<<", kdtree_add, 1);
     rb_define_method(Kdtree_class, "delete", kdtree_delete, 1);
     rb_define_method(Kdtree_class, "root", kdtree_root, 0);

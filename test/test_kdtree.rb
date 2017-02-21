@@ -23,6 +23,15 @@ class KdtreeTest < Minitest::Test
     @kdtree = KDTree.new(@points)
   end
 
+  def find_nearest(points, pt, cnt=1)
+    sorted = points.sort_by { |i| distance(i, pt) }
+    if cnt == 1
+      sorted.first
+    else
+      sorted.take(cnt)
+    end
+  end
+
   # def setup
   #   @points = [
   #     KDTreeNode.new(6, 3, 0),
@@ -52,17 +61,22 @@ class KdtreeTest < Minitest::Test
     100.times do
       pt = OpenStruct.new(x: rand_coord, y: rand_coord)
 
-      # kdtree search
-      kdpts = @kdtree.nearest(pt.x, pt.y, 10, -1)
-      kdpt = kdpts.first
+      # One result
+      kdpt = @kdtree.nearest(pt.x, pt.y)
+      sortpt = find_nearest(@points, pt)
+      assert(kdpt.id == sortpt.id, "kdtree nearest did not return the closest result")
 
-      # slow search
-      sortpt = @points.sort_by { |i| distance(i, pt) }.first
+      # N results
+      kdpts = @kdtree.nearest(pt.x, pt.y, 10)
+      sortpts = find_nearest(@points, pt, 10)
+      assert(kdpts.map(&:id) == sortpts.map(&:id), "kdtree nearest n did not return the closest result")
 
-      # assert
-      kdd = distance(kdpt, pt)
-      sortd = distance(sortpt, pt)
-      assert((kdd - sortd).abs < 0.0000001, "kdtree didn't return the closest result")
+
+      # With limit
+      kdpts = @kdtree.nearest(pt.x, pt.y, 10, 2)
+      limited = @points.select{ |p| distance(p, pt) < 2 }
+      sortpts = find_nearest(limited, pt, 10)
+      assert(kdpts.map(&:id) == sortpts.map(&:id), "kdtree nearest n with limit did not return the closest result")
     end
   end
 
@@ -77,8 +91,7 @@ class KdtreeTest < Minitest::Test
       pt = OpenStruct.new(x: rand_coord, y: rand_coord)
 
       # kdtree search
-      kdpts = @kdtree.nearest(pt.x, pt.y, 10, -1)
-      kdpt = kdpts.first
+      kdpt = @kdtree.nearest(pt.x, pt.y)
 
       # slow search
       sortpt = (@points + added).sort_by { |i| distance(i, pt) }.first
@@ -115,8 +128,7 @@ class KdtreeTest < Minitest::Test
       pt = OpenStruct.new(x: rand_coord, y: rand_coord)
 
       # kdtree search
-      kdpts = @kdtree.nearest(pt.x, pt.y, 10, -1)
-      kdpt = kdpts.first
+      kdpt = @kdtree.nearest(pt.x, pt.y)
 
       # slow search
       sortpt = @points.sort_by { |i| distance(i, pt) }.first
